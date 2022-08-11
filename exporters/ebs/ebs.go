@@ -19,13 +19,19 @@ const (
 	namespace = "ebs"
 )
 
+type EBSExporterFilters struct {
+	snapshot     []*ec2.Filter
+	volumeStatus []*ec2.Filter
+	volume       []*ec2.Filter
+}
+
 // EBSExporter is a struct that holds an instance
 // of EC2 client and the job details required to
 // scrape EBS metrics
 type EBSExporter struct {
 	client     *ec2.EC2
 	cloudwatch *cloudwatch.CloudWatch
-	filters    []*ec2.Filter
+	filters    *EBSExporterFilters
 	job        *config.Job
 	logger     *logrus.Logger
 	metrics    *metrics.Set
@@ -47,12 +53,32 @@ func New(j *config.Job, log *logrus.Logger, m *metrics.Set, rc *aws.Config, sess
 		cw = cloudwatch.New(sess)
 	}
 
-	filters := make([]*ec2.Filter, 0, len(j.Filters))
-	for _, tag := range j.Filters {
-		if tag.Name != "" || tag.Value != "" {
-			filters = append(filters, &ec2.Filter{
+	snapshotFilters := make([]*ec2.Filter, 0, len(j.Filters.Snapshot))
+	for _, tag := range j.Filters.Snapshot {
+		if tag.Name != "" && len(tag.Values) > 0 {
+			snapshotFilters = append(snapshotFilters, &ec2.Filter{
 				Name:   aws.String(tag.Name),
-				Values: []*string{aws.String(tag.Value)},
+				Values: tag.Values,
+			})
+		}
+	}
+
+	volumeStatusFilters := make([]*ec2.Filter, 0, len(j.Filters.VolumeStatus))
+	for _, tag := range j.Filters.VolumeStatus {
+		if tag.Name != "" && len(tag.Values) > 0 {
+			volumeStatusFilters = append(volumeStatusFilters, &ec2.Filter{
+				Name:   aws.String(tag.Name),
+				Values: tag.Values,
+			})
+		}
+	}
+
+	volumeFilters := make([]*ec2.Filter, 0, len(j.Filters.Volume))
+	for _, tag := range j.Filters.Volume {
+		if tag.Name != "" && len(tag.Values) > 0 {
+			volumeFilters = append(volumeFilters, &ec2.Filter{
+				Name:   aws.String(tag.Name),
+				Values: tag.Values,
 			})
 		}
 	}
@@ -61,10 +87,14 @@ func New(j *config.Job, log *logrus.Logger, m *metrics.Set, rc *aws.Config, sess
 	return &EBSExporter{
 		client:     client,
 		cloudwatch: cw,
-		filters:    filters,
-		job:        j,
-		logger:     log,
-		metrics:    m,
+		filters: &EBSExporterFilters{
+			snapshot:     snapshotFilters,
+			volumeStatus: volumeStatusFilters,
+			volume:       volumeFilters,
+		},
+		job:     j,
+		logger:  log,
+		metrics: m,
 	}
 }
 
@@ -72,7 +102,7 @@ func New(j *config.Job, log *logrus.Logger, m *metrics.Set, rc *aws.Config, sess
 func (e *EBSExporter) Collect() error {
 	var g errgroup.Group
 	g.Go(e.getSnapshotMetrics)
-	g.Go(e.getVolumeStatusMetrics)
+	// g.Go(e.getVolumeStatusMetrics)
 	g.Go(e.getVolumeUsageMetrics)
 
 	// Return if any of the errgroup
@@ -88,8 +118,8 @@ func (e *EBSExporter) Collect() error {
 func (e *EBSExporter) getSnapshotMetrics() error {
 	input := &ec2.DescribeSnapshotsInput{}
 	// Check whether there are filters defined in the config
-	if len(e.filters) != 0 {
-		input.Filters = e.filters
+	if len(e.filters.snapshot) > 0 {
+		input.Filters = e.filters.snapshot
 	}
 	// Fetch only private snapshots
 	input.OwnerIds = []*string{aws.String("self")}
@@ -144,8 +174,8 @@ func (e *EBSExporter) getSnapshotMetrics() error {
 // getVolumeStatusMetrics scrapes EBS volume status metrics from AWS
 func (e *EBSExporter) getVolumeStatusMetrics() error {
 	input := &ec2.DescribeVolumeStatusInput{}
-	if len(e.filters) != 0 {
-		input.Filters = e.filters
+	if len(e.filters.volumeStatus) > 0 {
+		input.Filters = e.filters.volumeStatus
 	}
 
 	volumes, err := e.client.DescribeVolumeStatus(input)
@@ -192,8 +222,8 @@ func (e *EBSExporter) getVolumeStatusMetrics() error {
 // getVolumeUsageMetrics scrapes EBS volume usage metrics from AWS
 func (e *EBSExporter) getVolumeUsageMetrics() error {
 	input := &ec2.DescribeVolumesInput{}
-	if len(e.filters) != 0 {
-		input.Filters = e.filters
+	if len(e.filters.volume) > 0 {
+		input.Filters = e.filters.volume
 	}
 
 	volumes, err := e.client.DescribeVolumes(input)

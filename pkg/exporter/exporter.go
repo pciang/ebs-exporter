@@ -6,6 +6,7 @@ import (
 	"github.com/VictoriaMetrics/metrics"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/sirupsen/logrus"
 	"github.com/thunderbottom/ebs-exporter/pkg/config"
@@ -42,19 +43,30 @@ func New(log *logrus.Logger, j *config.Job, m *metrics.Set) *Exporter {
 		logger: log,
 	}
 
-	config := &aws.Config{
+	commonAwsConfig := aws.Config{
 		Region: aws.String(j.AWS.Region),
 	}
-	if j.AWS.AccessKey != "" && j.AWS.SecretKey != "" {
-		config.Credentials = credentials.NewStaticCredentials(
+	if j.AWS.RoleARN != "" {
+		exporter.session = session.Must(session.NewSession(&commonAwsConfig))
+		exporter.session.Config.Credentials = stscreds.NewCredentials(
+			exporter.session,
+			j.AWS.RoleARN,
+		)
+	} else if j.AWS.Profile != "" {
+		exporter.session = session.Must(session.NewSessionWithOptions(session.Options{
+			Profile: j.AWS.Profile,
+			Config:  commonAwsConfig,
+		}))
+	} else if j.AWS.AccessKey != "" && j.AWS.SecretKey != "" {
+		exporter.session = session.Must(session.NewSession(&commonAwsConfig))
+		exporter.session.Config.Credentials = credentials.NewStaticCredentials(
 			j.AWS.AccessKey,
 			j.AWS.SecretKey,
-			"")
+			j.AWS.SecretToken,
+		)
+	} else {
+		exporter.session = session.Must(session.NewSession(&commonAwsConfig))
 	}
-
-	exporter.session = session.Must(session.NewSessionWithOptions(session.Options{
-		Config: *config,
-	}))
 
 	return exporter
 }

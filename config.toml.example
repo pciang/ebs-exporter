@@ -4,14 +4,31 @@ read_timeout  = 8000
 write_timeout = 8000
 
 [[jobs]]
-name        = "job"
+name = "example"
+
 [jobs.aws]
-access_key = ""
-secret_key = ""
-region     = "ap-south-1"
+profile      = ""
+access_key   = ""
+secret_key   = ""
+secret_token = ""
+region       = "eu-west-1"
+
 [jobs.filters]
-name  = "tag:tagname"
-value = "tagvalue"
-[jobs.tags]
-tag          = "ec2-tagname"
-exported_tag = "ec2_tagname"
+[[jobs.filters.snapshot]]
+# https://docs.aws.amazon.com/cli/latest/reference/ec2/describe-snapshots.html#options
+name   = "status"
+values = ["error"]
+
+# [[jobs.filters.volume_status]]
+# https://docs.aws.amazon.com/cli/latest/reference/ec2/describe-volume-status.html#options
+# name   = ""
+# values = [""]
+
+[[jobs.filters.volume]]
+# https://docs.aws.amazon.com/cli/latest/reference/ec2/describe-volumes.html#options
+name   = "status"
+values = ["available", "error"]
+
+[[jobs.tags]]
+tag          = "Name"
+exported_tag = "name"
