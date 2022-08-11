@@ -12,10 +12,12 @@ import (
 )
 
 type awsCredentials struct {
-	AccessKey string `koanf:"access_key"`
-	SecretKey string `koanf:"secret_key"`
-	Region    string `koanf:"region"`
-	RoleARN   string `koanf:"role_arn"`
+	Profile     string `koanf:"profile"`
+	AccessKey   string `koanf:"access_key"`
+	SecretKey   string `koanf:"secret_key"`
+	SecretToken string `koanf:"secret_token"`
+	Region      string `koanf:"region"`
+	RoleARN     string `koanf:"role_arn"`
 }
 
 type Config struct {
@@ -25,8 +27,8 @@ type Config struct {
 }
 
 type Filter struct {
-	Name  string `koanf:"name"`
-	Value string `koanf:"value"`
+	Name   string    `koanf:"name"`
+	Values []*string `koanf:"values"`
 }
 
 type Job struct {

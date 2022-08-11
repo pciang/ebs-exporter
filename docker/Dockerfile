@@ -1,30 +1,27 @@
 FROM golang:alpine as builder
 
-RUN adduser \
-        --disabled-password \
-        --gecos "" \
-        --no-create-home \
-        --shell "/sbin/nologin" \
-        --uid 10001 \
-        go
-
-WORKDIR /build
+WORKDIR /opt/ebs-exporter
 
 COPY . .
 
 RUN apk add --no-cache make ca-certificates git
 RUN make dist
 
-FROM scratch
+FROM golang:alpine
 
-WORKDIR /
+COPY --from=builder /opt/ebs-exporter/ebs-exporter          /opt/bin/ebs-exporter
+COPY --from=builder /opt/ebs-exporter/config.toml.example   /etc/ebs-exporter/config.toml
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt      /etc/ssl/certs/
 
-COPY --from=builder /build/ebs-exporter .
-COPY --from=builder /build/config.toml.example .
-COPY --from=builder /etc/passwd /etc/passwd
-COPY --from=builder /etc/shadow /etc/shadow
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+RUN adduser \
+    --disabled-password \
+    --home /home/go \
+    go
+
+RUN chown go /opt/bin/ebs-exporter /etc/ebs-exporter/config.toml
 
 USER go
 
-CMD ["/ebs-exporter"]
+ENTRYPOINT ["/opt/bin/ebs-exporter"]
+
+CMD ["--config=/etc/ebs-exporter/config.toml"]

@@ -7,25 +7,13 @@ import (
 	"time"
 
 	"github.com/VictoriaMetrics/metrics"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/thunderbottom/ebs-exporter/exporters/ebs"
 	"github.com/thunderbottom/ebs-exporter/pkg/exporter"
 	"golang.org/x/sync/errgroup"
 )
 
 func initExporters(ex *exporter.Exporter, m *metrics.Set) {
-	var (
-		job = ex.Job()
-		rc  *aws.Config
-	)
-
-	if job.AWS.RoleARN != "" {
-		creds := stscreds.NewCredentials(ex.Session(), job.AWS.RoleARN)
-		rc = &aws.Config{Credentials: creds}
-	}
-
-	ebsExp := ebs.New(ex.Job(), ex.Logger(), m, rc, ex.Session())
+	ebsExp := ebs.New(ex.Job(), ex.Logger(), m, ex.Session().Config, ex.Session())
 	ex.AddClient(ebsExp)
 }
 
