@@ -13,11 +13,11 @@ secret_key   = ""
 secret_token = ""
 region       = "eu-west-1"
 
-[[jobs.filters]]
+# [[jobs.filters]]
 # https://docs.aws.amazon.com/cli/latest/reference/ec2/describe-volumes.html#options
-name   = "status"
-values = ["available", "error"]
+# name   = "status"
+# values = ["available", "error"]
 
-[[jobs.tags]]
-tag          = "Name"
-exported_tag = "name"
+# [[jobs.tags]]
+# tag          = "Name"
+# exported_tag = "name"

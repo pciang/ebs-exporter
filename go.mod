@@ -1,4 +1,4 @@
-module github.com/thunderbottom/ebs-exporter
+module github.com/deliveryhero/misc-exporter
 
 go 1.15
 

@@ -1,19 +1,14 @@
-<a href="https://zerodha.tech"><img src="https://zerodha.tech/static/images/github-badge.svg" align="right"/></a>
-
-# EBS Exporter for Prometheus
+# Misc Exporter for Prometheus
 
 ## Overview
 
-Export Prometheus metrics for AWS EBS Snapshots and Volumes:
+Exports EBS volume state from AWS API DescribeVolumes:
 
-* EBS Snapshot Start Time: `ebs_snapshots_start_time`
-* EBS Snapshot Volume Size: `ebs_snapshots_volume_size`
-* EBS Snapshots Total: `ebs_snapshots_total`
-* EBS Volumes IOPS Credits (BurstBalance): `ebs_volume_iops_credit`
-* EBS Volumes Status (In-use/Available): `ebs_volume_status`
-* EBS Volumes Total: `ebs_volume_total`
-* EBS Volumes Type Total; `ebs_volume_type_total`
-* EBS Volumes Usage Status Total: `ebs_volume_usage_status_total`
+```
+ec2_describe_volumes{job="example",region="eu-west-1",type="io1",state="in-use"} 12
+ec2_describe_volumes{job="example",region="eu-west-1",type="gp2",state="available"} 23
+ec2_describe_volumes{job="example",region="eu-west-1",type="gp2",state="error"} 1
+```
 
 ## Getting Started
 
@@ -50,22 +45,33 @@ For the exporter to work, your IAM User/Role needs to have the following IAM Per
 
 ### Configuration
 
-`ebs-exporter` supports exporting data from multiple AWS accounts. For this, you need to create an entry for the account inside `config.toml`:
+`misc-exporter` supports exporting data from multiple AWS accounts. For this, you need to create an entry for the account inside `config.toml`:
 
 ```toml
+[server]
+address       = ":9980"
+read_timeout  = 8000
+write_timeout = 8000
+
 [[jobs]]
-name        = ""
+name = "example"
+
 [jobs.aws]
-access_key = ""
-secret_key = ""
-region     = "ap-south-1"
-role_arn   = ""
-[jobs.filters]
-name  = ""
-value = ""
-[jobs.tags]
-tag          = "ec2-tagname"
-exported_tag = "ec2_tagname"
+profile      = ""
+access_key   = ""
+secret_key   = ""
+secret_token = ""
+region       = "eu-west-1"
+
+# [[jobs.filters]]
+# https://docs.aws.amazon.com/cli/latest/reference/ec2/describe-volumes.html#options
+# name   = "status"
+# values = ["available", "error"]
+
+# [[jobs.tags]]
+# tag          = "Name"
+# exported_tag = "name"
+
 ```
 
 `[jobs.aws]` holds the credentials for the AWS account, and can be added per job. If no `access_key` and `secret_key` is specified, the exporter uses the default credentials configured by `awscli`.
@@ -76,33 +82,23 @@ exported_tag = "ec2_tagname"
 
 ## Installation
 
-### Precompiled Binaries
-
-To download and use precompiled binaries for GNU/Linux, MacOS, and Windows, head over to the [releases page](https://git.maych.in/thunderbottom/ebs-exporter/releases).
-
 ### Docker Installation
 
 To locally build and run the docker image, make sure you have edited `config.toml` before running:
 
 ```shell
-$ docker build -t ebs-exporter -f docker/Dockerfile .
-$ docker run -p 9980:9980 -v config.toml:/config.toml ebs-exporter
-```
-
-If you do not want to build your own docker image:
-
-```shell
-$ docker run -p 9980:9980 -v config.toml:/config.toml thunderbottom/ebs-exporter
+$ docker build -t misc-exporter -f docker/Dockerfile .
+$ docker run -p 9980:9980 -v "$(pwd)config.toml:/etc/misc-exporter/config.toml" misc-exporter
 ```
 
 ### Compiling the Binary
 
 ```shell
-$ git clone git@github.com:thunderbottom/ebs-exporter.git
-$ cd ebs-exporter
+$ git clone git@github.com:deliveryhero/misc-exporter.git
+$ cd misc-exporter
 $ make dist
 $ cp config.toml.example config.toml
-$ ./ebs-exporter -c config.toml
+$ ./misc-exporter -c config.toml
 ```
 
 ## Advanced
@@ -112,12 +108,12 @@ $ ./ebs-exporter -c config.toml
 Add the following configuration to Prometheus:
 
 ```yaml
-- job_name: 'ebs-exporter'
+- job_name: 'misc-exporter'
   metrics_path: '/metrics'
   static_configs:
   - targets: ['localhost:9980']
     labels:
-      service: ebs-exporter
+      service: misc-exporter
 ```
 
 ### Adding more exporters

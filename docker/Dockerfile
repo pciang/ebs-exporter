@@ -1,6 +1,6 @@
 FROM golang:alpine as builder
 
-WORKDIR /opt/ebs-exporter
+WORKDIR /opt/misc-exporter
 
 COPY . .
 
@@ -9,8 +9,8 @@ RUN make dist
 
 FROM golang:alpine
 
-COPY --from=builder /opt/ebs-exporter/ebs-exporter          /opt/bin/ebs-exporter
-COPY --from=builder /opt/ebs-exporter/config.toml.example   /etc/ebs-exporter/config.toml
+COPY --from=builder /opt/misc-exporter/misc-exporter          /opt/bin/misc-exporter
+COPY --from=builder /opt/misc-exporter/config.toml.example   /etc/misc-exporter/config.toml
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt      /etc/ssl/certs/
 
 RUN adduser \
@@ -18,10 +18,10 @@ RUN adduser \
     --home /home/go \
     go
 
-RUN chown go /opt/bin/ebs-exporter /etc/ebs-exporter/config.toml
+RUN chown go /opt/bin/misc-exporter /etc/misc-exporter/config.toml
 
 USER go
 
-ENTRYPOINT ["/opt/bin/ebs-exporter"]
+ENTRYPOINT ["/opt/bin/misc-exporter"]
 
-CMD ["--config=/etc/ebs-exporter/config.toml"]
+CMD ["--config=/etc/misc-exporter/config.toml"]
