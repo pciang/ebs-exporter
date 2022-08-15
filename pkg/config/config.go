@@ -5,6 +5,11 @@ import (
 	"os"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/jessevdk/go-flags"
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/toml"
@@ -32,10 +37,11 @@ type Filter struct {
 }
 
 type Job struct {
-	Name    string         `koanf:"name"`
-	AWS     awsCredentials `koanf:"aws"`
-	Filters []Filter       `koanf:"filters"`
-	Tags    []Tag          `koanf:"tags"`
+	Name         string         `koanf:"name"`
+	AWS          awsCredentials `koanf:"aws"`
+	Filters      []Filter       `koanf:"filters"`
+	Tags         []Tag          `koanf:"tags"`
+	AwsAccountId string
 }
 
 type server struct {
@@ -58,6 +64,37 @@ var (
 	opt    options
 	parser = flags.NewParser(&opt, flags.Default)
 )
+
+func NewAwsSessionFromJob(job *Job) *session.Session {
+	var awsSession *session.Session
+
+	commonAwsConfig := aws.Config{
+		Region: aws.String(job.AWS.Region),
+	}
+	if job.AWS.RoleARN != "" {
+		awsSession = session.Must(session.NewSession(&commonAwsConfig))
+		awsSession.Config.Credentials = stscreds.NewCredentials(
+			awsSession,
+			job.AWS.RoleARN,
+		)
+	} else if job.AWS.Profile != "" {
+		awsSession = session.Must(session.NewSessionWithOptions(session.Options{
+			Profile: job.AWS.Profile,
+			Config:  commonAwsConfig,
+		}))
+	} else if job.AWS.AccessKey != "" && job.AWS.SecretKey != "" {
+		awsSession = session.Must(session.NewSession(&commonAwsConfig))
+		awsSession.Config.Credentials = credentials.NewStaticCredentials(
+			job.AWS.AccessKey,
+			job.AWS.SecretKey,
+			job.AWS.SecretToken,
+		)
+	} else {
+		awsSession = session.Must(session.NewSession(&commonAwsConfig))
+	}
+
+	return awsSession
+}
 
 // ReadConfig reads and returns the configuration file
 func ReadConfig() (*Config, error) {
@@ -82,6 +119,15 @@ func ReadConfig() (*Config, error) {
 
 	if opt.Debug {
 		cfg.Debug = true
+	}
+
+	for jobIdx, _ := range cfg.Jobs {
+		awsSession := NewAwsSessionFromJob(&cfg.Jobs[jobIdx])
+		awsCallerIdentity, err := sts.New(awsSession).GetCallerIdentity(&sts.GetCallerIdentityInput{})
+		if err != nil {
+			return nil, err
+		}
+		cfg.Jobs[jobIdx].AwsAccountId = *awsCallerIdentity.Account
 	}
 
 	return &cfg, nil

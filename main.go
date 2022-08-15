@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/deliveryhero/misc-exporter/pkg/config"
 	"github.com/sirupsen/logrus"
-	"github.com/thunderbottom/ebs-exporter/pkg/config"
 )
 
 // App contains the scraping configuration
@@ -62,6 +62,7 @@ func newApp(log *logrus.Logger) (*App, error) {
 
 func main() {
 	log := getLogger()
+	// NOTE: Must re-deploy if config changes
 	app, err := newApp(log)
 	if err != nil {
 		log.Fatalf("an error occurred while initializing app: %s", err)

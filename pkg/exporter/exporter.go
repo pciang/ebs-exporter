@@ -4,12 +4,9 @@ import (
 	"regexp"
 
 	"github.com/VictoriaMetrics/metrics"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/deliveryhero/misc-exporter/pkg/config"
 	"github.com/sirupsen/logrus"
-	"github.com/thunderbottom/ebs-exporter/pkg/config"
 )
 
 // Exporter is a struct that contains an instance
@@ -39,33 +36,9 @@ func FormatTag(text string) string {
 func New(log *logrus.Logger, j *config.Job, m *metrics.Set) *Exporter {
 	log.Debugf("setting up exporter for job: %s", j.Name)
 	exporter := &Exporter{
-		job:    j,
-		logger: log,
-	}
-
-	commonAwsConfig := aws.Config{
-		Region: aws.String(j.AWS.Region),
-	}
-	if j.AWS.RoleARN != "" {
-		exporter.session = session.Must(session.NewSession(&commonAwsConfig))
-		exporter.session.Config.Credentials = stscreds.NewCredentials(
-			exporter.session,
-			j.AWS.RoleARN,
-		)
-	} else if j.AWS.Profile != "" {
-		exporter.session = session.Must(session.NewSessionWithOptions(session.Options{
-			Profile: j.AWS.Profile,
-			Config:  commonAwsConfig,
-		}))
-	} else if j.AWS.AccessKey != "" && j.AWS.SecretKey != "" {
-		exporter.session = session.Must(session.NewSession(&commonAwsConfig))
-		exporter.session.Config.Credentials = credentials.NewStaticCredentials(
-			j.AWS.AccessKey,
-			j.AWS.SecretKey,
-			j.AWS.SecretToken,
-		)
-	} else {
-		exporter.session = session.Must(session.NewSession(&commonAwsConfig))
+		job:     j,
+		logger:  log,
+		session: config.NewAwsSessionFromJob(j),
 	}
 
 	return exporter

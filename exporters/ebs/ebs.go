@@ -8,9 +8,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudwatch"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/deliveryhero/misc-exporter/pkg/config"
+	"github.com/deliveryhero/misc-exporter/pkg/exporter"
 	"github.com/sirupsen/logrus"
-	"github.com/thunderbottom/ebs-exporter/pkg/config"
-	"github.com/thunderbottom/ebs-exporter/pkg/exporter"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -84,39 +84,51 @@ func (e *EBSExporter) Collect() error {
 
 // ec2DescribeVolumes scrapes EBS volume usage metrics from AWS
 func (e *EBSExporter) ec2DescribeVolumes() error {
-	input := &ec2.DescribeVolumesInput{}
+	var maxResult int64 = 500
+	initialInput := &ec2.DescribeVolumesInput{
+		MaxResults: &maxResult,
+	}
 	if len(e.filters) > 0 {
-		input.Filters = e.filters
+		initialInput.Filters = e.filters
 	}
 
-	volumes, err := e.client.DescribeVolumes(input)
-	if err != nil {
-		e.logger.Errorf("An error occurred while retrieving volume usage data: %s", err)
-		return err
-	}
-
-	e.logger.Debugf("%s: Got %d Volumes", e.job.Name, len(volumes.Volumes))
-	for _, v := range volumes.Volumes {
-		// Labels to attach in ec2_describe_volumes
-		labels := fmt.Sprintf(`job="%s",region="%s",vol_id="%s",type="%s",status="%s",availability_zone="%s"`,
-			e.job.Name, e.job.AWS.Region, *v.VolumeId, *v.VolumeType, *v.State, *v.AvailabilityZone)
-
-		// Check whether the volume contains any tags
-		// that we want to export
-		for _, et := range e.job.Tags {
-			for _, t := range v.Tags {
-				if *t.Key == et.Tag {
-					// Ensure that the tags are correct by replacing
-					// unsupported characters with underscore
-					labels = labels + fmt.Sprintf(`,%s="%s"`, exporter.FormatTag(et.ExportedTag), *t.Value)
-				}
-			}
+	result, err := e.client.DescribeVolumes(initialInput)
+	for {
+		if err != nil {
+			e.logger.Errorf("An error occurred while retrieving volume usage data: %s", err)
+			return err
 		}
 
-		ebsVolume := fmt.Sprintf(`ec2_describe_volumes{%s}`, labels)
-		e.metrics.GetOrCreateGauge(ebsVolume, func() float64 {
-			return 1
-		})
+		e.logger.Debugf("%s: Got %d Volumes", e.job.Name, len(result.Volumes))
+		for _, v := range result.Volumes {
+			// Labels to attach in ec2_describe_volumes
+			labels := fmt.Sprintf(`job="%s",account_id="%s",region="%s",type="%s",status="%s"`,
+				e.job.Name, e.job.AwsAccountId, e.job.AWS.Region, *v.VolumeType, *v.State)
+
+			// Check whether the volume contains any tags
+			// that we want to export
+			for _, et := range e.job.Tags {
+				for _, t := range v.Tags {
+					if *t.Key == et.Tag {
+						// Ensure that the tags are correct by replacing
+						// unsupported characters with underscore
+						labels = labels + fmt.Sprintf(`,%s="%s"`, exporter.FormatTag(et.ExportedTag), *t.Value)
+					}
+				}
+			}
+
+			ebsVolume := fmt.Sprintf(`ec2_describe_volumes{%s}`, labels)
+			e.metrics.GetOrCreateCounter(ebsVolume).Add(1)
+		}
+
+		if result.NextToken != nil {
+			result, err = e.client.DescribeVolumes(&ec2.DescribeVolumesInput{
+				MaxResults: &maxResult,
+				NextToken:  result.NextToken,
+			})
+		} else {
+			break
+		}
 	}
 
 	return nil

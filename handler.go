@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/VictoriaMetrics/metrics"
-	"github.com/thunderbottom/ebs-exporter/exporters/ebs"
-	"github.com/thunderbottom/ebs-exporter/pkg/exporter"
+	"github.com/deliveryhero/misc-exporter/exporters/ebs"
+	"github.com/deliveryhero/misc-exporter/pkg/exporter"
 	"golang.org/x/sync/errgroup"
 )
 
